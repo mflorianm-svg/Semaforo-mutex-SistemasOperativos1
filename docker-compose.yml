@@ -1,0 +1,124 @@
+# ──────────────────────────────────────────────────────────────
+#  Proyecto: Productor-Consumidor con Semáforo Redis + MySQL
+#  5 contenedores: mysql · redis · productor · consumidor1 · consumidor2
+# ──────────────────────────────────────────────────────────────
+
+services:
+
+  # ── 1. Base de datos ──────────────────────────────────────
+  mysql:
+    image: mysql:8
+    container_name: mysql
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE:      ${MYSQL_DATABASE}
+      MYSQL_USER:          ${MYSQL_USER}
+      MYSQL_PASSWORD:      ${MYSQL_PASSWORD}
+    volumes:
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost",
+             "-u", "root", "--password=${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - red_proyecto
+
+  # ── 2. Semáforo distribuido ────────────────────────────────
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - red_proyecto
+
+  # ── 3. Productor ──────────────────────────────────────────
+  productor:
+    build:
+      context: ./productor
+      dockerfile: Dockerfile
+    container_name: productor
+    env_file: .env
+    environment:
+      MYSQL_HOST:     mysql
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER:     ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - red_proyecto
+    restart: on-failure
+
+  # ── 4. Consumidor 1 ───────────────────────────────────────
+  consumidor1:
+    build:
+      context: ./consumidor
+      dockerfile: Dockerfile
+    container_name: consumidor1
+    env_file: .env
+    environment:
+      MYSQL_HOST:     mysql
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER:     ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST:     ${REDIS_HOST}
+      REDIS_PORT:     ${REDIS_PORT}
+      CONSUMER_ID:    consumidor1
+      # ── Escenario A: USE_SEMAFORO=true  | Escenario B: USE_SEMAFORO=false ──
+      USE_SEMAFORO:   "false"   # cambiar a "false" para Escenario B
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - red_proyecto
+    restart: on-failure
+
+  # ── 5. Consumidor 2 (misma imagen que consumidor1) ────────
+  consumidor2:
+    build:
+      context: ./consumidor
+      dockerfile: Dockerfile
+    container_name: consumidor2
+    env_file: .env
+    environment:
+      MYSQL_HOST:     mysql
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER:     ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST:     ${REDIS_HOST}
+      REDIS_PORT:     ${REDIS_PORT}
+      CONSUMER_ID:    consumidor2
+      USE_SEMAFORO:   "false"   # cambiar a "false" para Escenario B
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - red_proyecto
+    restart: on-failure
+
+# ──────────────────────────────────────────────────────────────
+volumes:
+  mysql_data:
+
+networks:
+  red_proyecto:
+    driver: bridge

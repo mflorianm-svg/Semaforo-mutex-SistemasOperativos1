@@ -1,0 +1,20 @@
+# ── Evidencias (capturas, logs, trazas) ──────────────────────
+evidencias/
+
+# ── Variables de entorno (credenciales) ──────────────────────
+.env
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# ── Docker ───────────────────────────────────────────────────
+# Volúmenes locales si se exportan
+*.tar
+
+# ── macOS ────────────────────────────────────────────────────
+.DS_Store
+ 
